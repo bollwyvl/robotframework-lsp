@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 import os
 
-_dirname = os.path.dirname(os.path.abspath(__file__))
+_dirname = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _readme_filename = os.path.join(_dirname, "README.md")
 if not os.path.exists(_readme_filename):
     raise AssertionError('Expected: %s to exist.' % (_readme_filename,))
