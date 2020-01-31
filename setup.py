@@ -15,7 +15,11 @@ setup(
     url="https://github.com/robocorp/robotframework-lsp",
     author="Fabio Zadrozny",
     copyright="Robocorp Technologies, Inc.",
-    packages=find_packages(where='src'),
+    packages=['robotframework_ls', 'pyls_jsonrpc'],
+    package_dir={
+        'robotframework_ls': 'src/robotframework_ls',
+        'pyls_jsonrpc': 'src/pyls_jsonrpc',
+    },
     
     # List run-time dependencies here. These will be installed by pip when
     # your project is installed. For an analysis of "install_requires" vs pip's
