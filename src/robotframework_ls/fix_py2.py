@@ -2,9 +2,7 @@
 def _add_to_sys_path():
     import sys
     from os.path import os
-    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    root_dir = os.path.dirname(src_dir)
-    libs_py2_dir = os.path.join(root_dir, "libs_py2")
+    libs_py2_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libs_py2")
     if not os.path.exists(libs_py2_dir):
         raise AssertionError('Expected: %s to exist.' % (libs_py2_dir,))
     sys.path.append(libs_py2_dir)
