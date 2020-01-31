@@ -97,6 +97,7 @@ def test_request_error(endpoint, consumer):
 
 
 def test_request_cancel(endpoint, consumer):
+    from pyls_jsonrpc.exceptions import JsonRpcRequestCancelled
     future = endpoint.request('methodName', {'key': 'value'})
     assert not future.done()
 
@@ -108,7 +109,7 @@ def test_request_cancel(endpoint, consumer):
     })
 
     # Cancel the request
-    future.cancel()
+    future.set_exception(JsonRpcRequestCancelled())
     consumer.assert_any_call({
         'jsonrpc': '2.0',
         'method': '$/cancelRequest',
@@ -118,7 +119,7 @@ def test_request_cancel(endpoint, consumer):
     with pytest.raises(exceptions.JsonRpcException) as exc_info:
         assert future.result(timeout=2)
     assert exc_info.type == exceptions.JsonRpcRequestCancelled
-
+    
 
 def test_consume_notification(endpoint, dispatcher):
     handler = mock.Mock()

@@ -87,8 +87,11 @@ class Endpoint(object):
         """Construct a cancellation callback for the given request ID."""
         def callback(future):
             if future.cancelled():
+                raise AssertionError('Futures should not be cancelled. Use future.set_exception(JsonRpcRequestCancelled()) instead.')
+            
+            exc = future.exception()
+            if isinstance(exc, JsonRpcRequestCancelled):
                 self.notify(CANCEL_METHOD, {'id': request_id})
-                future.set_exception(JsonRpcRequestCancelled())
         return callback
 
     def consume(self, message):
@@ -204,15 +207,15 @@ class Endpoint(object):
             # Remove the future from the client requests map
             self._client_request_futures.pop(request_id, None)
 
-            if future.cancelled():
-                future.set_exception(JsonRpcRequestCancelled())
-
-            message = {
-                'jsonrpc': JSONRPC_VERSION,
-                'id': request_id,
-            }
 
             try:
+                if future.cancelled():
+                    raise JsonRpcRequestCancelled()
+    
+                message = {
+                    'jsonrpc': JSONRPC_VERSION,
+                    'id': request_id,
+                }
                 message['result'] = future.result()
             except JsonRpcException as e:
                 log.exception("Failed to handle request %s", request_id)
