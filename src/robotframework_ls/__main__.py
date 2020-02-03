@@ -71,7 +71,7 @@ def main(args=None, after_bind=lambda server: None, language_server_class=None):
     )
 
     if language_server_class is None:
-        from robotframework_ls.ext.robotframework_ls_impl import (
+        from robotframework_ls.robotframework_ls_impl import (
             RobotFrameworkLanguageServer,
         )
 
