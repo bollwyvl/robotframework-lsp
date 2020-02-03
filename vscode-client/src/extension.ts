@@ -71,7 +71,7 @@ export function activate(context: ExtensionContext) {
 		context.subscriptions.push(startLangServerTCP(port, ["robotframework"]));
 
 	} else {
-		let executable: string = config.get<string>("python.executable");
+		let executable: string = config.get<string>("language-server.python");
 
 		if (!executable) {
 			// Search python from the path.
@@ -82,12 +82,12 @@ export function activate(context: ExtensionContext) {
 			}
 			executable = findExecutableInPath(executable);
 			if (!fs.existsSync(executable)) {
-				window.showWarningMessage('Could not find python executable on PATH. Please specify in option: robot.python.executable');
+				window.showWarningMessage('Could not find python executable on PATH. Please specify in option: robot.language-server.python');
 				return;
 			}
 		} else {
 			if (!fs.existsSync(executable)) {
-				window.showWarningMessage('Option: robot.python.executable points to wrong file: ' + executable);
+				window.showWarningMessage('Option: robot.language-server.python points to wrong file: ' + executable);
 				return;
 			}
 		}
