@@ -3,6 +3,7 @@
 from functools import partial
 import logging
 import os
+
 try:
     import socketserver
 except ImportError:
@@ -16,12 +17,10 @@ from pyls_jsonrpc.streams import JsonRpcStreamReader, JsonRpcStreamWriter
 from . import lsp, _utils, uris
 from .config import config
 from .workspace import Workspace
-import time
 
 log = logging.getLogger(__name__)
 
 
-PARENT_PROCESS_WATCH_INTERVAL = 3  # 3 s
 MAX_WORKERS = 64
 PYTHON_FILE_EXTENSIONS = (".py", ".pyi")
 CONFIG_FILEs = ("pycodestyle.cfg", "setup.cfg", "tox.ini", ".flake8")
@@ -49,6 +48,42 @@ class _StreamHandlerWrapper(socketserver.StreamRequestHandler, object):
         self.SHUTDOWN_CALL()
 
 
+class RedirectedStreamErrorOnAccess(object):
+    def __getattr__(self, mname):
+        raise AssertionError("This stream is now redirected and should not be used.")
+
+
+def binary_stdio():
+    """Construct binary stdio streams (not text mode).
+
+    This seems to be different for Window/Unix Python2/3, so going by:
+        https://stackoverflow.com/questions/2850893/reading-binary-data-from-stdin
+    """
+    import sys
+
+    PY3K = sys.version_info >= (3, 0)
+
+    if PY3K:
+        stdin, stdout = sys.stdin.buffer, sys.stdout.buffer
+    else:
+        # Python 2 on Windows opens sys.stdin in text mode, and
+        # binary data that read from it becomes corrupted on \r\n
+        if sys.platform == "win32":
+            # set sys.stdin to binary mode
+            import msvcrt
+
+            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+        stdin, stdout = sys.stdin, sys.stdout
+
+    sys.stdin, sys.stdout = (
+        RedirectedStreamErrorOnAccess(),
+        RedirectedStreamErrorOnAccess(),
+    )
+
+    return stdin, stdout
+
+
 def start_tcp_lang_server(
     bind_addr, port, handler_class, after_bind=lambda server: None
 ):
@@ -60,8 +95,8 @@ def start_tcp_lang_server(
         Called right after server.bind (so, it's possible to get the port with
         server.socket.getsockname() if port 0 was passed).
     """
-    if not issubclass(handler_class, PythonLanguageServer):
-        raise ValueError("Handler class must be an instance of PythonLanguageServer")
+    if not issubclass(handler_class, MethodDispatcher):
+        raise ValueError("Handler class must be an instance of MethodDispatcher")
 
     def shutdown_server(*args):
         log.debug("Shutting down server")
@@ -93,8 +128,8 @@ def start_tcp_lang_server(
 
 
 def start_io_lang_server(rfile, wfile, handler_class):
-    if not issubclass(handler_class, PythonLanguageServer):
-        raise ValueError("Handler class must be an instance of PythonLanguageServer")
+    if not issubclass(handler_class, MethodDispatcher):
+        raise ValueError("Handler class must be an instance of MethodDispatcher")
     log.info(
         "Starting %s IO language server. pid: %s", handler_class.__name__, os.getpid()
     )
@@ -184,6 +219,8 @@ class PythonLanguageServer(MethodDispatcher):
         initializationOptions=None,
         **_kwargs
     ):
+        from robotframework_ls._utils import exit_when_pid_exists
+
         log.debug(
             "Language server initialized with:\n    processId: %s\n    rootUri: %s\n    rootPath: %s\n    initializationOptions: %s",
             processId,
@@ -205,26 +242,9 @@ class PythonLanguageServer(MethodDispatcher):
         self.workspace = Workspace(rootUri, self._endpoint, self.config)
         self.workspaces[rootUri] = self.workspace
 
-        if processId not in (None, -1, 0) and self.watching_thread is None:
+        if processId not in (None, -1, 0):
+            exit_when_pid_exists(processId)
 
-            def watch_parent_process(pid):
-                # exit when the given pid is not alive
-                while True:
-                    if not _utils.is_process_alive(pid):
-                        # Note: just exit since the parent process already
-                        # exited.
-                        log.info(
-                            "Force-quit process: %s", os.getpid(),
-                        )
-                        os._exit(0)
-
-                    time.sleep(PARENT_PROCESS_WATCH_INTERVAL)
-
-            self.watching_thread = threading.Thread(
-                target=watch_parent_process, args=(processId,)
-            )
-            self.watching_thread.daemon = True
-            self.watching_thread.start()
         # Get our capabilities
         return {"capabilities": self.capabilities()}
 

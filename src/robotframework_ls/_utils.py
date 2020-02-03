@@ -8,6 +8,8 @@ import sys
 import threading
 from robotframework_ls.constants import IS_PY2
 
+PARENT_PROCESS_WATCH_INTERVAL = 3  # 3 s
+
 if IS_PY2:
     import pathlib2 as pathlib
 else:
@@ -279,3 +281,32 @@ def kill_process_and_subprocesses(pid):
             raise CalledProcessError(retcode, args)
     else:
         _kill_process_and_subprocess_linux(pid)
+
+
+_track_pids_to_exit = set()
+_watching_thread_global = None
+
+
+def exit_when_pid_exists(pid):
+    _track_pids_to_exit.add(pid)
+    global _watching_thread_global
+    if _watching_thread_global is None:
+        import time
+
+        def watch_parent_process():
+            # exit when any of the ids we're tracking exit.
+            while True:
+                for pid in _track_pids_to_exit:
+                    if not is_process_alive(pid):
+                        # Note: just exit since the parent process already
+                        # exited.
+                        log.info(
+                            "Force-quit process: %s", os.getpid(),
+                        )
+                        os._exit(0)
+
+                time.sleep(PARENT_PROCESS_WATCH_INTERVAL)
+
+        _watching_thread_global = threading.Thread(target=watch_parent_process, args=())
+        _watching_thread_global.daemon = True
+        _watching_thread_global.start()

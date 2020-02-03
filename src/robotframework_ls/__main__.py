@@ -56,7 +56,7 @@ def add_arguments(parser):
     )
 
 
-def main(args=None, after_bind=lambda server: None):
+def main(args=None, after_bind=lambda server: None, language_server_class=None):
     try:
         import robotframework_ls
     except ImportError:
@@ -67,10 +67,15 @@ def main(args=None, after_bind=lambda server: None):
     from robotframework_ls.python_ls import (
         start_io_lang_server,
         start_tcp_lang_server,
+        binary_stdio,
     )
-    from robotframework_ls.ext.robotframework_ls_impl import (
-        RobotFrameworkLanguageServer,
-    )
+
+    if language_server_class is None:
+        from robotframework_ls.ext.robotframework_ls_impl import (
+            RobotFrameworkLanguageServer,
+        )
+
+        language_server_class = RobotFrameworkLanguageServer
 
     parser = argparse.ArgumentParser()
     add_arguments(parser)
@@ -80,44 +85,11 @@ def main(args=None, after_bind=lambda server: None):
 
     if args.tcp:
         start_tcp_lang_server(
-            args.host, args.port, RobotFrameworkLanguageServer, after_bind=after_bind,
+            args.host, args.port, language_server_class, after_bind=after_bind,
         )
     else:
-        stdin, stdout = _binary_stdio()
-        start_io_lang_server(stdin, stdout, RobotFrameworkLanguageServer)
-
-
-class RedirectedStreamErrorOnAccess(object):
-    def __getattr__(self, mname):
-        raise AssertionError("This stream is now redirected and should not be used.")
-
-
-def _binary_stdio():
-    """Construct binary stdio streams (not text mode).
-
-    This seems to be different for Window/Unix Python2/3, so going by:
-        https://stackoverflow.com/questions/2850893/reading-binary-data-from-stdin
-    """
-    PY3K = sys.version_info >= (3, 0)
-
-    if PY3K:
-        stdin, stdout = sys.stdin.buffer, sys.stdout.buffer
-    else:
-        # Python 2 on Windows opens sys.stdin in text mode, and
-        # binary data that read from it becomes corrupted on \r\n
-        if sys.platform == "win32":
-            # set sys.stdin to binary mode
-            import msvcrt
-
-            msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
-            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
-        stdin, stdout = sys.stdin, sys.stdout
-    sys.stdin, sys.stdout = (
-        RedirectedStreamErrorOnAccess(),
-        RedirectedStreamErrorOnAccess(),
-    )
-
-    return stdin, stdout
+        stdin, stdout = binary_stdio()
+        start_io_lang_server(stdin, stdout, language_server_class)
 
 
 def _configure_logger(verbose=0, log_config=None, log_file=None):
