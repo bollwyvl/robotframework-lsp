@@ -1,4 +1,7 @@
 from pyls_jsonrpc.dispatchers import MethodDispatcher
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class RobotFrameworkServerApi(MethodDispatcher):
@@ -27,6 +30,23 @@ class RobotFrameworkServerApi(MethodDispatcher):
             from robotframework_ls._utils import exit_when_pid_exists
 
             exit_when_pid_exists(processId)
+
+    def m_version(self):
+        try:
+            from robot import get_version
+
+            return get_version(naked=True)
+        except:
+            log.exception("Unable to get version.")
+            return "N/A"  # Too old?
+
+    def m_lint(self, source=None):
+        if not source:
+            return []
+        from robotframework_ls.ext.errors import collect_errors
+
+        errors = collect_errors(source)
+        return [error.to_lsp_diagnostic() for error in errors]
 
     def m_shutdown(self, **_kwargs):
         pass

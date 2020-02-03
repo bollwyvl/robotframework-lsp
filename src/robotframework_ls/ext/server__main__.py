@@ -10,7 +10,7 @@ _critical_error_log_file = os.path.join(
 )
 
 
-def start_server_process(args=()):
+def start_server_process(args=(), python_exe=None):
     """
     Calls this __main__ in another process.
     
@@ -21,11 +21,10 @@ def start_server_process(args=()):
     """
     import subprocess
 
+    args = [python_exe or sys.executable, "-u", __file__] + list(args)
+    log.debug("Starting server api process with args: %s" % (args,))
     language_server_process = subprocess.Popen(
-        [sys.executable, "-u", __file__] + list(args),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE,
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
     )
 
     return language_server_process

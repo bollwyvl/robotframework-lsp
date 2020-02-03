@@ -35,10 +35,17 @@ def server_process_io(server_process):
     read_from = server_process.stdout
 
     with _communicate_lang_server(
-        write_to, read_from, language_server_client_class=RobotFrameworkApiClient
+        write_to,
+        read_from,
+        language_server_client_class=RobotFrameworkApiClient,
+        kwargs={"server_process": server_process},
     ) as lang_server_client:
         yield lang_server_client
 
 
-def test_server(server_process_io):
-    server_process_io.initialize()
+def test_server(server_process_io, data_regression):
+    import os
+
+    server_process_io.initialize(process_id=os.getpid())
+    assert server_process_io.get_version() == "3.2"
+    data_regression.check(server_process_io.lint("*** foo bar ***"), basename="errors")

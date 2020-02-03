@@ -1,5 +1,8 @@
+import os
+
+
 def test_diagnostics(language_server, ws_root_path, data_regression):
-    language_server.initialize(ws_root_path)
+    language_server.initialize(ws_root_path, process_id=os.getpid())
 
     language_server.write(
         {

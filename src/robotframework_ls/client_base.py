@@ -1,15 +1,41 @@
 import logging
 import itertools
 from functools import partial
+import threading
 
 log = logging.getLogger(__name__)
 
 
-def _read_into_queue(reader, queue):
-    def _put_into_queue(msg):
-        queue.put(msg)
+class _MessageMatcher(object):
+    def __init__(self):
+        self.event = threading.Event()
+        self.msg = None
 
-    reader.listen(_put_into_queue)
+    def notify(self, msg):
+        self.msg = msg
+        self.event.set()
+
+
+class _ReaderThread(threading.Thread):
+    def __init__(self, reader, queue):
+        threading.Thread.__init__(self)
+        self.reader = reader
+        self.queue = queue
+        self._message_matchers = {}
+
+    def run(self):
+        self.reader.listen(self._put_into_queue)
+
+    def _put_into_queue(self, msg):
+        if "id" in msg:
+            message_matcher = self._message_matchers.get(msg["id"])
+            if message_matcher is not None:
+                message_matcher.notify(msg)
+        self.queue.put(msg)
+
+    def obtain_message_matcher(self, message_id):
+        message_matcher = self._message_matchers[message_id] = _MessageMatcher()
+        return message_matcher
 
 
 class LanguageServerClientBase(object):
@@ -26,8 +52,6 @@ class LanguageServerClientBase(object):
         :param JsonRpcStreamWriter writer:
         :param JsonRpcStreamReader reader:
         """
-        import threading
-
         try:
             from queue import Queue
         except:
@@ -37,10 +61,20 @@ class LanguageServerClientBase(object):
         self.reader = reader
         self._queue = Queue()
 
-        t = threading.Thread(target=_read_into_queue, args=(reader, self._queue))
+        t = _ReaderThread(reader, self._queue)
+        self._reader_thread = t
         t.start()
         self.require_exit_messages = True
         self.next_id = partial(next, itertools.count())
+
+    def request(self, contents, timeout=None):
+        message_id = contents["id"]
+        message_matcher = self._reader_thread.obtain_message_matcher(message_id)
+        self.write(contents)
+        if not message_matcher.event.wait(timeout=timeout):
+            raise AssertionError("Request timed-out (%s): %s" % (timeout, contents,))
+
+        return message_matcher.msg
 
     def write(self, contents):
         self.writer.write(contents)
