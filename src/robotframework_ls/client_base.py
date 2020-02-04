@@ -19,6 +19,7 @@ class _MessageMatcher(object):
 class _ReaderThread(threading.Thread):
     def __init__(self, reader, queue):
         threading.Thread.__init__(self)
+        self.setDaemon(True)
         self.reader = reader
         self.queue = queue
         self._message_matchers = {}
